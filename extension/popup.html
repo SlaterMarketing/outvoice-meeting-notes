@@ -7,102 +7,204 @@
     <style>
       :root {
         color-scheme: light dark;
-        font-family: system-ui, sans-serif;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         font-size: 14px;
+        --bg: #f7f5f2;
+        --surface: rgba(255, 255, 255, 0.72);
+        --text: #1a1917;
+        --text-muted: #52525b;
+        --border: rgba(26, 25, 23, 0.1);
+        --primary: #1a1917;
+        --primary-hover: #2d2c29;
+        --radius: 14px;
+        --radius-sm: 10px;
+        --radius-pill: 9999px;
+        --shadow: 0 1px 2px rgba(26, 25, 23, 0.06), 0 4px 16px rgba(26, 25, 23, 0.06);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #18181b;
+          --surface: rgba(39, 39, 42, 0.75);
+          --text: #fafafa;
+          --text-muted: #a1a1aa;
+          --border: rgba(255, 255, 255, 0.1);
+          --primary: #fafafa;
+          --primary-hover: #e4e4e7;
+          --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 20px rgba(0, 0, 0, 0.35);
+        }
+      }
+      html {
+        border-radius: 16px;
+        overflow: hidden;
+        background: var(--bg);
       }
       body {
-        width: 320px;
+        width: 328px;
         margin: 0;
-        padding: 12px;
-        line-height: 1.4;
+        padding: 14px 14px 16px;
+        line-height: 1.45;
+        background: var(--bg);
+        color: var(--text);
+        box-sizing: border-box;
       }
       h1 {
-        font-size: 15px;
+        font-size: 16px;
         margin: 0 0 8px;
         font-weight: 600;
+        letter-spacing: -0.02em;
       }
       p {
         margin: 0 0 10px;
-        color: #555;
+        color: var(--text-muted);
       }
       label {
         display: block;
-        margin-top: 8px;
+        margin-top: 10px;
         font-size: 12px;
-        color: #333;
+        font-weight: 500;
+        color: var(--text);
       }
-      input {
+      input:not([type="checkbox"]) {
         width: 100%;
         box-sizing: border-box;
-        margin-top: 4px;
-        padding: 6px 8px;
-        border-radius: 6px;
-        border: 1px solid #ccc;
+        margin-top: 6px;
+        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
         font: inherit;
+        box-shadow: 0 1px 2px rgba(26, 25, 23, 0.04);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      input:focus {
+        outline: none;
+        border-color: rgba(26, 25, 23, 0.22);
+        box-shadow: 0 0 0 3px rgba(26, 25, 23, 0.08);
+      }
+      @media (prefers-color-scheme: dark) {
+        input:focus {
+          border-color: rgba(255, 255, 255, 0.2);
+          box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+        }
       }
       button {
-        margin-top: 10px;
-        padding: 8px 10px;
+        margin-top: 12px;
+        padding: 10px 14px;
         width: 100%;
         border: 0;
-        border-radius: 6px;
-        background: #18181b;
-        color: #fff;
+        border-radius: var(--radius-pill);
+        background: var(--primary);
+        color: var(--bg);
         font: inherit;
+        font-weight: 600;
+        font-size: 13px;
         cursor: pointer;
+        box-shadow: var(--shadow);
+        transition: background 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
+      }
+      button:hover:not(:disabled) {
+        background: var(--primary-hover);
+      }
+      button:active:not(:disabled) {
+        transform: scale(0.98);
       }
       button.secondary {
-        background: #fff;
-        color: #18181b;
-        border: 1px solid #d4d4d8;
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+        box-shadow: 0 1px 2px rgba(26, 25, 23, 0.04);
+      }
+      button.secondary:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.95);
+      }
+      @media (prefers-color-scheme: dark) {
+        button {
+          color: #18181b;
+        }
+        button.secondary {
+          color: var(--text);
+        }
+        button.secondary:hover:not(:disabled) {
+          background: rgba(63, 63, 70, 0.6);
+        }
       }
       button:disabled {
-        opacity: 0.55;
+        opacity: 0.5;
         cursor: default;
+        transform: none;
       }
       .row {
         display: flex;
-        gap: 8px;
+        gap: 10px;
       }
       .row button {
         flex: 1;
+        margin-top: 12px;
       }
       .small {
-        font-size: 11px;
-        color: #666;
+        font-size: 12px;
+        color: var(--text-muted);
+        line-height: 1.4;
       }
       .error {
         color: #b91c1c;
         font-size: 12px;
-        margin-top: 6px;
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: var(--radius-sm);
+        background: rgba(185, 28, 28, 0.08);
+      }
+      @media (prefers-color-scheme: dark) {
+        .error {
+          background: rgba(248, 113, 113, 0.12);
+        }
       }
       .ok {
         color: #15803d;
         font-size: 12px;
-        margin-top: 6px;
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: var(--radius-sm);
+        background: rgba(21, 128, 61, 0.08);
+      }
+      @media (prefers-color-scheme: dark) {
+        .ok {
+          background: rgba(74, 222, 128, 0.12);
+        }
       }
       details.advanced {
-        margin-top: 14px;
-        border-top: 1px solid #e4e4e7;
-        padding-top: 12px;
+        margin-top: 16px;
+        border-top: 1px solid var(--border);
+        padding-top: 14px;
+        border-radius: 0;
       }
       details.advanced summary {
         cursor: pointer;
         font-size: 12px;
-        color: #52525b;
+        font-weight: 500;
+        color: var(--text-muted);
         user-select: none;
+        padding: 4px 0;
+        border-radius: var(--radius-sm);
+      }
+      details.advanced summary:hover {
+        color: var(--text);
       }
       .brand-bar {
         display: flex;
         align-items: center;
-        gap: 0.3375rem;
-        margin-bottom: 12px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid #e4e4e7;
+        gap: 0.30375rem;
+        margin: -2px -2px 14px;
+        padding: 10px 12px;
+        border-radius: var(--radius);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        box-shadow: 0 1px 3px rgba(26, 25, 23, 0.05);
       }
       .brand-bar img {
-        width: 26px;
-        height: 26px;
+        width: 21px;
+        height: 21px;
         object-fit: contain;
         flex-shrink: 0;
       }
@@ -110,23 +212,21 @@
         font-family: Georgia, "Liberation Serif", ui-serif, serif;
         font-size: 1.35rem;
         font-weight: 500;
-        color: #1a1917;
+        color: var(--text);
         letter-spacing: -0.02em;
         line-height: 1;
       }
-      @media (prefers-color-scheme: dark) {
-        .brand-word {
-          color: #fafafa;
-        }
-        .brand-bar {
-          border-bottom-color: #3f3f46;
-        }
+      label input[type="checkbox"] {
+        width: auto;
+        margin-right: 8px;
+        vertical-align: middle;
+        accent-color: var(--primary);
       }
     </style>
   </head>
   <body>
     <header class="brand-bar" aria-label="Outvoice">
-      <img src="outvoice.png" alt="" width="26" height="26" decoding="async" />
+      <img src="outvoice.png" alt="" width="21" height="21" decoding="async" />
       <span class="brand-word">utvoice</span>
     </header>
     <div id="consent">
@@ -150,6 +250,9 @@
       </p>
       <p id="connect-msg" class="small"></p>
       <button type="button" id="sign-in">Sign in with browser</button>
+      <button type="button" id="tab-auth-finish" class="secondary" hidden>
+        Finish sign-in
+      </button>
 
       <details class="advanced" id="advanced">
         <summary>Other setup (code from Settings)</summary>
@@ -172,7 +275,7 @@
         <button type="button" id="stop" disabled>Stop &amp; send</button>
       </div>
       <p class="small" id="hint">
-        Keep this window open while capturing. Switch to your meeting tab before Start.
+        Keep this open if you start here, or use Stop on the meeting page. Select the meeting tab before Start.
       </p>
     </div>
 

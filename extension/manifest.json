@@ -1,10 +1,52 @@
 {
   "manifest_version": 3,
-  "name": "Outvoice capture",
+  "name": "Outvoice",
   "description": "Capture meeting audio from the browser tab and send it to your Outvoice library.",
-  "version": "0.1.0",
-  "permissions": ["tabCapture", "storage", "activeTab", "identity"],
-  "host_permissions": ["http://localhost:3000/*", "https://*/*"],
+  "version": "0.2.0",
+  "permissions": [
+    "tabCapture",
+    "storage",
+    "activeTab",
+    "identity",
+    "tabs",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://meet.google.com/*",
+        "https://*.zoom.us/*",
+        "https://zoom.us/*",
+        "https://teams.microsoft.com/*",
+        "https://*.teams.microsoft.com/*",
+        "https://teams.live.com/*"
+      ],
+      "js": ["content/overlay.js"],
+      "css": ["content/overlay.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["outvoice.png"],
+      "matches": [
+        "https://meet.google.com/*",
+        "https://*.zoom.us/*",
+        "https://zoom.us/*",
+        "https://teams.microsoft.com/*",
+        "https://*.teams.microsoft.com/*",
+        "https://teams.live.com/*"
+      ]
+    }
+  ],
   "icons": {
     "16": "outvoice.png",
     "32": "outvoice.png",

@@ -18,11 +18,32 @@ const SUMMARY_SYSTEM = `You turn meeting transcripts into structured notes. Repl
 - "actionItems": array of { "task": string, "owner": string | null }
 Use an empty array for actionItems if there are none.`;
 
+type SttSegment = {
+  start?: number;
+  end?: number;
+  text?: string;
+  speaker?: string;
+};
+
 type SttResponse = {
   text?: string;
+  language?: string;
+  duration?: number;
+  segments?: SttSegment[];
   error?: string;
   detail?: string;
 };
+
+function extractSttText(data: SttResponse): string {
+  const direct = data.text?.trim();
+  if (direct) return direct;
+  const fromSegments = data.segments
+    ?.map((s) => s.text?.trim())
+    .filter((t): t is string => Boolean(t))
+    .join(" ")
+    .trim();
+  return fromSegments || "";
+}
 
 type VoiceChatResponse = {
   ai_text?: string;
@@ -55,9 +76,15 @@ export async function transcribeWithTtsAi(
       data.error || data.detail || `Speech-to-text failed (${res.status})`
     );
   }
-  const text = data.text?.trim();
+  const text = extractSttText(data);
   if (!text) {
-    throw new Error("Speech-to-text returned no text.");
+    console.warn("[ttsai/stt] empty transcript", {
+      duration: data.duration,
+      segmentCount: data.segments?.length ?? 0,
+    });
+    throw new Error(
+      "No speech was found in this recording. Record a bit longer with the meeting tab unmuted and selected, or try again when others are speaking."
+    );
   }
   return text;
 }

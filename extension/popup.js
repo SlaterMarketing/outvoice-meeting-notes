@@ -50,11 +50,32 @@ async function showStage() {
   if (!accessToken) {
     connectEl.style.display = "block";
     mainEl.style.display = "none";
+    /** @type {HTMLButtonElement} */ ($("tab-auth-finish")).hidden = true;
     return;
   }
 
   connectEl.style.display = "none";
   mainEl.style.display = "block";
+  await syncPopupRecordingUi();
+}
+
+async function syncPopupRecordingUi() {
+  try {
+    /** @type {{ recording?: boolean }} */
+    const r = await chrome.runtime.sendMessage({ type: "OUTVOICE_GET_STATE" });
+    if (r?.recording) {
+      /** @type {HTMLButtonElement} */ ($("start")).disabled = true;
+      /** @type {HTMLButtonElement} */ ($("stop")).disabled = false;
+      setStatus("Capturing… use Stop here or on the meeting page.");
+    } else {
+      /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
+      /** @type {HTMLButtonElement} */ ($("stop")).disabled = true;
+      setStatus("Idle. Start from your meeting tab.");
+    }
+  } catch {
+    /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
+    /** @type {HTMLButtonElement} */ ($("stop")).disabled = true;
+  }
 }
 
 const consentCheck = /** @type {HTMLInputElement} */ ($("consent-check"));
@@ -83,12 +104,91 @@ function launchWebAuthFlowPromise(url) {
   });
 }
 
+/**
+ * @param {string} origin
+ * @param {string} responseUrl
+ * @param {HTMLElement} msg
+ * @returns {Promise<boolean>}
+ */
+async function completeAuthCodeExchange(origin, responseUrl, msg) {
+  let code;
+  try {
+    const u = new URL(responseUrl);
+    code = u.searchParams.get("code");
+  } catch {
+    msg.textContent = "Unexpected response.";
+    msg.className = "error";
+    return false;
+  }
+  if (!code) {
+    msg.textContent = "No code returned. Try again.";
+    msg.className = "error";
+    return false;
+  }
+
+  const res = await fetch(`${origin}/api/extension/exchange`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  const data = /** @type {{ accessToken?: string; error?: string }} */ (await res.json());
+  if (!res.ok || !data.accessToken) {
+    msg.textContent = data.error || "Could not finish sign-in.";
+    msg.className = "error";
+    return false;
+  }
+  await chrome.storage.sync.set({
+    accessToken: data.accessToken,
+    libraryOrigin: origin,
+  });
+  msg.textContent = "Connected.";
+  msg.className = "ok";
+  return true;
+}
+
+function findExtensionRedirectInTabs() {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({}, (tabs) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      for (const t of tabs || []) {
+        const url = t.url;
+        if (!url) continue;
+        try {
+          const u = new URL(url);
+          if (!u.hostname.endsWith("chromiumapp.org")) continue;
+          const code = u.searchParams.get("code");
+          if (code) {
+            resolve({ responseUrl: url, tabId: /** @type {number} */ (t.id) });
+            return;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      resolve(null);
+    });
+  });
+}
+
 $("sign-in").addEventListener("click", async () => {
   const msg = $("connect-msg");
+  const tabFinish = /** @type {HTMLButtonElement} */ ($("tab-auth-finish"));
   msg.textContent = "";
+  tabFinish.hidden = true;
   const origin = getPackagedLibraryOrigin();
   if (!origin) {
     msg.textContent = "This helper is not set up with a valid web address.";
+    msg.className = "error";
+    return;
+  }
+
+  try {
+    await fetch(`${origin}/login`, { method: "GET", cache: "no-store" });
+  } catch {
+    msg.textContent = "Could not reach your library. Start the web app, then try again.";
     msg.className = "error";
     return;
   }
@@ -98,58 +198,88 @@ $("sign-in").addEventListener("click", async () => {
 
   const btn = /** @type {HTMLButtonElement} */ ($("sign-in"));
   btn.disabled = true;
+  tabFinish.disabled = true;
   try {
-    const responseUrl = await launchWebAuthFlowPromise(authUrl);
+    let responseUrl = /** @type {string | undefined} */ (undefined);
+    try {
+      responseUrl = await launchWebAuthFlowPromise(authUrl);
+    } catch (e) {
+      const m = e instanceof Error ? e.message : "";
+      if (m.includes("Authorization page could not be loaded")) {
+        try {
+          await new Promise((resolve, reject) => {
+            chrome.tabs.create({ url: authUrl, active: true }, () => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+                return;
+              }
+              resolve(undefined);
+            });
+          });
+        } catch (createErr) {
+          msg.textContent =
+            createErr instanceof Error ? createErr.message : "Could not open sign-in tab.";
+          msg.className = "error";
+          return;
+        }
+        msg.textContent =
+          "Sign-in opened in a normal tab. After that page finishes, come back here and tap Finish sign-in.";
+        msg.className = "small";
+        tabFinish.hidden = false;
+        return;
+      }
+      if (
+        typeof m === "string" &&
+        (m.includes("closed") || m.includes("canceled") || m.includes("cancelled"))
+      ) {
+        msg.textContent = "Sign-in was cancelled.";
+      } else {
+        msg.textContent = m;
+      }
+      msg.className = "error";
+      return;
+    }
+
     if (!responseUrl) {
       msg.textContent = "Sign-in was cancelled.";
       msg.className = "error";
       return;
     }
-    let code;
-    try {
-      const u = new URL(responseUrl);
-      code = u.searchParams.get("code");
-    } catch {
-      msg.textContent = "Unexpected response.";
-      msg.className = "error";
-      return;
-    }
-    if (!code) {
-      msg.textContent = "No code returned. Try again.";
-      msg.className = "error";
-      return;
-    }
 
-    const res = await fetch(`${origin}/api/extension/exchange`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
-    });
-    const data = /** @type {{ accessToken?: string; error?: string }} */ (await res.json());
-    if (!res.ok || !data.accessToken) {
-      msg.textContent = data.error || "Could not finish sign-in.";
-      msg.className = "error";
-      return;
-    }
-    await chrome.storage.sync.set({
-      accessToken: data.accessToken,
-    });
-    msg.textContent = "Connected.";
-    msg.className = "ok";
-    await showStage();
-  } catch (e) {
-    const m = e instanceof Error ? e.message : "Sign-in failed.";
-    if (
-      typeof m === "string" &&
-      (m.includes("closed") || m.includes("canceled") || m.includes("cancelled"))
-    ) {
-      msg.textContent = "Sign-in was cancelled.";
-    } else {
-      msg.textContent = m;
-    }
-    msg.className = "error";
+    const ok = await completeAuthCodeExchange(origin, responseUrl, msg);
+    if (ok) await showStage();
   } finally {
     btn.disabled = false;
+    tabFinish.disabled = false;
+  }
+});
+
+$("tab-auth-finish").addEventListener("click", async () => {
+  const msg = $("connect-msg");
+  const tabFinish = /** @type {HTMLButtonElement} */ ($("tab-auth-finish"));
+  const origin = getPackagedLibraryOrigin();
+  if (!origin) {
+    msg.textContent = "This helper is not set up with a valid web address.";
+    msg.className = "error";
+    return;
+  }
+  tabFinish.disabled = true;
+  try {
+    const found = await findExtensionRedirectInTabs();
+    if (!found) {
+      msg.textContent =
+        "No finished sign-in tab found. Finish logging in in the other tab, then try again.";
+      msg.className = "error";
+      return;
+    }
+    const ok = await completeAuthCodeExchange(origin, found.responseUrl, msg);
+    if (ok) {
+      chrome.tabs.remove(found.tabId).catch(() => {});
+      tabFinish.hidden = true;
+      await showStage();
+    }
+  } finally {
+    tabFinish.disabled = false;
   }
 });
 
@@ -192,6 +322,7 @@ $("pair").addEventListener("click", async () => {
     }
     await chrome.storage.sync.set({
       accessToken: data.accessToken,
+      libraryOrigin: origin,
     });
     msg.textContent = "Connected.";
     msg.className = "ok";
@@ -205,28 +336,13 @@ $("pair").addEventListener("click", async () => {
   }
 });
 
-/** @type {MediaRecorder | null} */
-let mediaRecorder = null;
-/** @type {BlobPart[]} */
-let chunks = [];
-/** @type {MediaStream | null} */
-let capturedStream = null;
-/** @type {string | null} */
-let meetingId = null;
-/** @type {string | null} */
-let accessToken = null;
-/** @type {string | null} */
-let apiOrigin = null;
-
 function setStatus(text) {
   $("status").textContent = text;
 }
 
 $("start").addEventListener("click", async () => {
   const sync = await chrome.storage.sync.get(["accessToken"]);
-  apiOrigin = getPackagedLibraryOrigin();
-  accessToken = sync.accessToken || null;
-  if (!accessToken || !apiOrigin) {
+  if (!sync.accessToken || !getPackagedLibraryOrigin()) {
     setStatus("Sign in first.");
     return;
   }
@@ -237,121 +353,54 @@ $("start").addEventListener("click", async () => {
     return;
   }
 
-  /** @type {MediaStream | undefined} */
-  let stream;
-  try {
-    stream = await chrome.tabCapture.capture({
-      targetTabId: tab.id,
-      audio: true,
-      video: false,
-    });
-  } catch (e) {
-    setStatus(e instanceof Error ? e.message : "Could not capture audio.");
-    return;
-  }
-
-  if (!stream) {
-    setStatus("Could not capture this tab. Focus your meeting tab and try again.");
-    return;
-  }
-
-  capturedStream = stream;
-
-  const startRes = await fetch(`${apiOrigin}/api/meetings/start`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      tabUrl: tab.url || "",
-      title: tab.title || "",
-    }),
-  });
-  const startJson = /** @type {{ meetingId?: string; error?: string }} */ (
-    await startRes.json()
-  );
-  if (!startRes.ok) {
-    stream.getTracks().forEach((t) => t.stop());
-    capturedStream = null;
-    setStatus(startJson.error || "Could not start session.");
-    return;
-  }
-  meetingId = startJson.meetingId || null;
-  if (!meetingId) {
-    stream.getTracks().forEach((t) => t.stop());
-    capturedStream = null;
-    setStatus("Bad response from library.");
-    return;
-  }
-
-  chunks = [];
-  let mime = "audio/webm;codecs=opus";
-  if (!MediaRecorder.isTypeSupported(mime)) {
-    mime = "audio/webm";
-  }
-  mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
-  mediaRecorder.ondataavailable = (ev) => {
-    if (ev.data && ev.data.size > 0) chunks.push(ev.data);
-  };
-  mediaRecorder.start(2000);
-
   /** @type {HTMLButtonElement} */ ($("start")).disabled = true;
-  /** @type {HTMLButtonElement} */ ($("stop")).disabled = false;
-  setStatus("Capturing… keep this window open.");
+  try {
+    /** @type {{ ok?: boolean; error?: string }} */
+    const res = await chrome.runtime.sendMessage({
+      type: "OUTVOICE_START_CAPTURE",
+      tabId: tab.id,
+      tabUrl: tab.url || "",
+      tabTitle: tab.title || "",
+    });
+    if (!res?.ok) {
+      setStatus(res?.error || "Could not start.");
+      /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
+      return;
+    }
+    /** @type {HTMLButtonElement} */ ($("stop")).disabled = false;
+    setStatus("Capturing… use Stop here or on the meeting page.");
+  } catch (e) {
+    setStatus(e instanceof Error ? e.message : "Could not start.");
+    /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
+  }
 });
 
 $("stop").addEventListener("click", async () => {
-  if (!mediaRecorder || mediaRecorder.state === "inactive") {
-    return;
-  }
   /** @type {HTMLButtonElement} */ ($("stop")).disabled = true;
   setStatus("Processing…");
-
-  const token = accessToken;
-  const origin = apiOrigin;
-  const id = meetingId;
-  const mr = mediaRecorder;
-
-  mr.addEventListener(
-    "stop",
-    async () => {
-      if (capturedStream) {
-        capturedStream.getTracks().forEach((t) => t.stop());
-        capturedStream = null;
-      }
-      if (!token || !origin || !id) {
-        setStatus("Lost session. Try again.");
-        /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
-        return;
-      }
-      const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
-      chunks = [];
-      const form = new FormData();
-      form.append("audio", blob, "capture.webm");
-      try {
-        const res = await fetch(`${origin}/api/meetings/${id}/audio`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: form,
-        });
-        const data = /** @type {{ error?: string }} */ (await res.json());
-        if (!res.ok) {
-          setStatus(data.error || "Upload failed.");
-        } else {
-          setStatus("Sent. Open your library to read notes.");
-        }
-      } catch (e) {
-        setStatus(e instanceof Error ? e.message : "Upload failed.");
-      }
-      /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
-      meetingId = null;
-      mediaRecorder = null;
-    },
-    { once: true }
-  );
-
-  mr.stop();
+  try {
+    /** @type {{ ok?: boolean; error?: string }} */
+    const res = await chrome.runtime.sendMessage({ type: "OUTVOICE_STOP_CAPTURE" });
+    if (!res?.ok) {
+      setStatus(res?.error || "Stop failed.");
+    } else {
+      setStatus("Sent. Open your library to read notes.");
+    }
+  } catch (e) {
+    setStatus(e instanceof Error ? e.message : "Stop failed.");
+  }
+  /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
+  /** @type {HTMLButtonElement} */ ($("stop")).disabled = true;
 });
 
+async function migrateLibraryOrigin() {
+  const o = getPackagedLibraryOrigin();
+  if (!o) return;
+  const r = await chrome.storage.sync.get("libraryOrigin");
+  if (!r.libraryOrigin) {
+    await chrome.storage.sync.set({ libraryOrigin: o });
+  }
+}
+
+void migrateLibraryOrigin();
 void showStage();

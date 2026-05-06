@@ -21,12 +21,20 @@ export async function GET(req: NextRequest) {
   }
 
   const opaque = nanoid(32);
-  await db.insert(extensionChromeAuthCodes).values({
-    id: nanoid(),
-    userId: session.sub,
-    code: opaque,
-    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-  });
+  try {
+    await db.insert(extensionChromeAuthCodes).values({
+      id: nanoid(),
+      userId: session.sub,
+      code: opaque,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    });
+  } catch (e) {
+    console.error("[extension/connect] insert extension_chrome_auth_codes failed", e);
+    return new NextResponse(
+      "Extension sign-in is not ready on this server yet. Use a connection code from Settings in your library, or try again after an update.",
+      { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } },
+    );
+  }
 
   const target = new URL(redirectUri);
   target.searchParams.set("code", opaque);

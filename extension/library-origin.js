@@ -6,4 +6,4 @@
  *   "http://localhost:3000"
  *   "https://outvoice.example.com"
  */
-window.OUTVOICE_LIBRARY_ORIGIN = "http://localhost:3000";
+window.OUTVOICE_LIBRARY_ORIGIN = "https://outvoice.ai";

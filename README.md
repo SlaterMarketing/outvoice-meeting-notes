@@ -18,6 +18,8 @@ Capture meeting audio from **Google Meet**, **Zoom (web)**, or **Microsoft Teams
    npm run dev
    ```
 
+   **Deployed app:** run `npm run db:push` from `web/` with the **production** `DATABASE_URL` in your environment, or run [`web/scripts/init-schema.sql`](web/scripts/init-schema.sql) in Neon’s SQL Editor. Otherwise you may see `relation "login_codes" does not exist` on sign-in.
+
 3. **Email** — Set `RESEND_API_KEY` and a verified sending identity: **`EMAIL_FROM_DOMAIN`** (we send as `noreply@` that domain with optional `EMAIL_FROM_NAME` / `EMAIL_FROM_LOCAL`), or set **`EMAIL_FROM`** to a full `Name <addr>` string to override. If Resend is missing, the API logs the code on the server and the login screen can show a dev fallback after requesting a code.
 
 4. **Processing** — Set `TTS_AI_API_KEY` from [TTS.ai](https://tts.ai/api/) (speech-to-text + notes), or sign in and add your key under **Settings** (BYO).

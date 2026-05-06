@@ -1,6 +1,9 @@
 const CONSENT_KEY = "consentVersion";
 const CONSENT_VALUE = "1";
 
+const READY_STATUS =
+  "Ready to record this tab. If Start fails, click the Outvoice icon once while this tab is on top, then try again.";
+
 /**
  * @param {string} href
  * @returns {"meet" | "zoom" | "teams" | null}
@@ -70,7 +73,7 @@ function buildOverlay() {
 
   const status = document.createElement("div");
   status.id = "outvoice-overlay-status";
-  status.textContent = "Ready to record this tab.";
+  status.textContent = READY_STATUS;
 
   const actions = document.createElement("div");
   actions.id = "outvoice-overlay-actions";
@@ -137,7 +140,7 @@ function applyRecordingUi(ui, recording, done) {
     if (done) {
       ui.status.textContent = "Sent. Open your library for notes.";
     } else {
-      ui.status.textContent = "Ready to record this tab.";
+      ui.status.textContent = READY_STATUS;
     }
   }
 }

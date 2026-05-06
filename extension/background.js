@@ -10,6 +10,20 @@ function normalizeOrigin(raw) {
   }
 }
 
+/**
+ * @param {unknown} err
+ */
+function friendlyTabCaptureError(err) {
+  const s = err instanceof Error ? err.message : String(err);
+  if (/cannot be captured|invalid tab|Cannot capture/i.test(s)) {
+    return "This page can’t be recorded. Use a normal Meet, Zoom, or Teams tab.";
+  }
+  if (/has not been invoked|activeTab|Extension has not been invoked/i.test(s)) {
+    return "Pin Outvoice on your toolbar if needed, click its icon once while this meeting tab is on top, then tap Start again.";
+  }
+  return s || "Could not access this tab’s audio.";
+}
+
 /** @type {chrome.runtime.Port | null} */
 let offscreenPort = null;
 
@@ -77,7 +91,60 @@ async function startCaptureForTab(tabId, tabUrl, title) {
     throw new Error("Already recording.");
   }
 
-  const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
+  let url = tabUrl || "";
+  try {
+    const t = await chrome.tabs.get(tabId);
+    url = t.url || url;
+  } catch {
+    throw new Error("This tab is no longer available.");
+  }
+
+  if (
+    url.startsWith("chrome://") ||
+    url.startsWith("chrome-extension://") ||
+    url.startsWith("devtools://") ||
+    url.startsWith("edge://") ||
+    url.startsWith("about:")
+  ) {
+    throw new Error(
+      "This page can’t be recorded. Open Meet, Zoom, or Teams in a regular browser tab."
+    );
+  }
+  let parsed = null;
+  try {
+    parsed = url ? new URL(url) : null;
+  } catch {
+    parsed = null;
+  }
+  if (
+    parsed &&
+    (parsed.hostname === "chrome.google.com" ||
+      parsed.hostname === "chromewebstore.google.com")
+  ) {
+    throw new Error(
+      "This page can’t be recorded. Open Meet, Zoom, or Teams in a regular browser tab."
+    );
+  }
+
+  let streamId;
+  try {
+    streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
+  } catch (e) {
+    const active = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const front = active[0];
+    if (front?.id === tabId) {
+      try {
+        streamId = await chrome.tabCapture.getMediaStreamId();
+      } catch (e2) {
+        throw new Error(friendlyTabCaptureError(e2));
+      }
+    } else {
+      throw new Error(friendlyTabCaptureError(e));
+    }
+  }
+  if (!streamId) {
+    throw new Error("Could not read audio from this tab.");
+  }
 
   const port = await connectOffscreen();
   const id = crypto.randomUUID();
@@ -170,9 +237,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     startCaptureForTab(tabId, tabUrl, tabTitle)
       .then(() => sendResponse({ ok: true }))
-      .catch((e) =>
-        sendResponse({ ok: false, error: e instanceof Error ? e.message : "Failed." })
-      );
+      .catch((e) => {
+        const raw = e instanceof Error ? e.message : String(e);
+        const leaked =
+          /activeTab|has not been invoked|Extension has not been invoked|cannot be captured|Cannot capture|invalid tab/i.test(
+            raw
+          );
+        sendResponse({
+          ok: false,
+          error: leaked ? friendlyTabCaptureError(e) : raw || "Failed.",
+        });
+      });
     return true;
   }
 

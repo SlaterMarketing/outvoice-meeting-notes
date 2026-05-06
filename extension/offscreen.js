@@ -140,11 +140,19 @@ async function handleStart(msg) {
     mime = "audio/webm";
   }
   try {
-    mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
+    try {
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType: mime,
+        audioBitsPerSecond: 128000,
+      });
+    } catch {
+      mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
+    }
     mediaRecorder.ondataavailable = (ev) => {
       if (ev.data && ev.data.size > 0) chunks.push(ev.data);
     };
-    mediaRecorder.start(2000);
+    /* No timeslice: one reliable blob on stop (chunked mode often yields empty STT for short clips). */
+    mediaRecorder.start();
 
     await persistRecordingState(meetingId, /** @type {number} */ (captureTabId));
   } catch (e) {

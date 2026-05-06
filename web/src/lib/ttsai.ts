@@ -43,11 +43,19 @@ function extractSttText(data: Record<string, unknown>): string {
     return null;
   };
 
-  for (const key of ["text", "transcription", "transcript"] as const) {
+  for (const key of ["text", "transcription", "transcript", "output_text"] as const) {
     const t = tryStr(data[key]);
     if (t) return t;
   }
 
+  const dataObj = data.data;
+  if (dataObj && typeof dataObj === "object") {
+    const inner = dataObj as Record<string, unknown>;
+    for (const key of ["text", "transcription", "transcript"] as const) {
+      const t = tryStr(inner[key]);
+      if (t) return t;
+    }
+  }
   const nested = data.result;
   if (nested && typeof nested === "object") {
     const r = nested as Record<string, unknown>;
@@ -80,6 +88,66 @@ type VoiceChatResponse = {
   detail?: string;
 };
 
+const STT_POLL_MS = 1800;
+const STT_POLL_DEADLINE_MS = 180_000;
+
+/**
+ * Some deployments queue STT and return uuid + status before text is ready.
+ */
+async function resolveSttResponseJson(
+  base: string,
+  apiKey: string,
+  initial: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  let data = initial;
+  const uuid =
+    typeof data.uuid === "string"
+      ? data.uuid
+      : typeof data.job_id === "string"
+        ? data.job_id
+        : null;
+  const status0 = typeof data.status === "string" ? data.status.toLowerCase() : "";
+  const needsPoll =
+    uuid &&
+    extractSttText(data) === "" &&
+    (status0 === "queued" || status0 === "processing" || status0 === "pending");
+  if (!needsPoll) {
+    return data;
+  }
+
+  const deadline = Date.now() + STT_POLL_DEADLINE_MS;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, STT_POLL_MS));
+    const pollRes = await fetch(
+      `${base}/speech/results/?uuid=${encodeURIComponent(uuid)}`,
+      { headers: { Authorization: `Bearer ${apiKey}` } }
+    );
+    const pollRaw = await pollRes.text().catch(() => "");
+    try {
+      data = pollRaw ? (JSON.parse(pollRaw) as Record<string, unknown>) : {};
+    } catch {
+      continue;
+    }
+    const st = typeof data.status === "string" ? data.status.toLowerCase() : "";
+    if (st === "failed") {
+      const err =
+        typeof data.error === "string"
+          ? data.error
+          : typeof data.detail === "string"
+            ? data.detail
+            : "Speech-to-text job failed";
+      throw new Error(err);
+    }
+    if (extractSttText(data)) {
+      return data;
+    }
+    if (st !== "queued" && st !== "processing" && st !== "pending" && st !== "") {
+      return data;
+    }
+  }
+  return initial;
+}
+
 export async function transcribeWithTtsAi(
   audioBuffer: Buffer,
   filename: string,
@@ -91,7 +159,8 @@ export async function transcribeWithTtsAi(
   /* File (not raw Blob) ensures multipart filename/body are sent reliably in Node fetch. */
   const file = new File([new Uint8Array(audioBuffer)], filename, { type: mime });
   form.append("file", file);
-  form.append("model", process.env.TTS_AI_STT_MODEL ?? "faster-whisper");
+  /* API default is whisper; faster-whisper has regressed on some WebM/opus uploads. */
+  form.append("model", process.env.TTS_AI_STT_MODEL ?? "whisper");
   const lang = (process.env.TTS_AI_STT_LANGUAGE ?? "").trim();
   if (lang && lang.toLowerCase() !== "auto") {
     form.append("language", lang);
@@ -122,6 +191,14 @@ export async function transcribeWithTtsAi(
           : undefined;
     throw new Error(err || `Speech-to-text failed (${res.status})`);
   }
+
+  try {
+    data = await resolveSttResponseJson(base, apiKey, data);
+  } catch (e) {
+    if (e instanceof Error) throw e;
+    throw new Error("Speech-to-text polling failed");
+  }
+
   const text = extractSttText(data);
   if (!text) {
     const segLen = Array.isArray(data.segments) ? data.segments.length : 0;

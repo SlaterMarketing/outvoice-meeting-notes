@@ -6,7 +6,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="flex min-h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
       <header className="border-b border-zinc-200/80 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <BrandLogo compact href="/" />
+          <BrandLogo compact href="/" wordmarkClassName="text-zinc-900 dark:text-zinc-50" />
           <Link
             href="/login"
             className="text-sm font-medium text-zinc-600 underline-offset-4 hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-100"

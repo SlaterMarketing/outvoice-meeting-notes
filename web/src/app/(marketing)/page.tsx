@@ -13,7 +13,7 @@ export default async function LandingPage() {
       <section className="border-b border-[#1a1917]/10 px-5 pb-20 pt-16 md:px-8 md:pb-28 md:pt-24">
         <div className="mx-auto max-w-4xl">
           <div className="mb-8 flex justify-center">
-            <BrandLogo />
+            <BrandLogo prominent />
           </div>
           <p className="mb-6 text-center text-sm font-medium uppercase tracking-[0.2em] text-[#1a1917]/50">
             Meeting notes, without the busywork

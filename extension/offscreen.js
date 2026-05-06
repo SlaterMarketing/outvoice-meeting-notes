@@ -175,6 +175,14 @@ async function handleStop() {
   const id = meetingId;
   const mr = mediaRecorder;
 
+  if (mr.state === "recording") {
+    try {
+      mr.requestData();
+    } catch {
+      /* ignore */
+    }
+  }
+
   await new Promise((resolve) => {
     mr.addEventListener(
       "stop",

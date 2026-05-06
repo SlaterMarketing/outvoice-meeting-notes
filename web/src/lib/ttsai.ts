@@ -28,6 +28,8 @@ type SttSegment = {
 
 type SttResponse = {
   text?: string;
+  transcription?: string;
+  transcript?: string;
   language?: string;
   duration?: number;
   segments?: SttSegment[];
@@ -35,15 +37,41 @@ type SttResponse = {
   detail?: string;
 };
 
-function extractSttText(data: SttResponse): string {
-  const direct = data.text?.trim();
-  if (direct) return direct;
-  const fromSegments = data.segments
-    ?.map((s) => s.text?.trim())
-    .filter((t): t is string => Boolean(t))
-    .join(" ")
-    .trim();
-  return fromSegments || "";
+function extractSttText(data: Record<string, unknown>): string {
+  const tryStr = (v: unknown): string | null => {
+    if (typeof v === "string" && v.trim()) return v.trim();
+    return null;
+  };
+
+  for (const key of ["text", "transcription", "transcript"] as const) {
+    const t = tryStr(data[key]);
+    if (t) return t;
+  }
+
+  const nested = data.result;
+  if (nested && typeof nested === "object") {
+    const r = nested as Record<string, unknown>;
+    for (const key of ["text", "transcription", "transcript"] as const) {
+      const t = tryStr(r[key]);
+      if (t) return t;
+    }
+  }
+
+  const segs = data.segments;
+  if (Array.isArray(segs)) {
+    const fromSegments = segs
+      .map((s) => {
+        if (s && typeof s === "object" && "text" in s)
+          return tryStr((s as { text?: unknown }).text);
+        return null;
+      })
+      .filter((t): t is string => Boolean(t))
+      .join(" ")
+      .trim();
+    if (fromSegments) return fromSegments;
+  }
+
+  return "";
 }
 
 type VoiceChatResponse = {
@@ -60,10 +88,14 @@ export async function transcribeWithTtsAi(
 ): Promise<string> {
   const base = getTtsAiBaseUrl();
   const form = new FormData();
-  const blob = new Blob([new Uint8Array(audioBuffer)], { type: mime });
-  form.append("file", blob, filename);
+  /* File (not raw Blob) ensures multipart filename/body are sent reliably in Node fetch. */
+  const file = new File([new Uint8Array(audioBuffer)], filename, { type: mime });
+  form.append("file", file);
   form.append("model", process.env.TTS_AI_STT_MODEL ?? "faster-whisper");
-  form.append("language", process.env.TTS_AI_STT_LANGUAGE ?? "auto");
+  const lang = (process.env.TTS_AI_STT_LANGUAGE ?? "").trim();
+  if (lang && lang.toLowerCase() !== "auto") {
+    form.append("language", lang);
+  }
 
   const res = await fetch(`${base}/stt/`, {
     method: "POST",
@@ -71,17 +103,35 @@ export async function transcribeWithTtsAi(
     body: form,
   });
 
-  const data = (await res.json().catch(() => ({}))) as SttResponse;
+  const rawText = await res.text().catch(() => "");
+  let data: Record<string, unknown> = {};
+  if (rawText) {
+    try {
+      data = JSON.parse(rawText) as Record<string, unknown>;
+    } catch {
+      data = {};
+    }
+  }
+
   if (!res.ok) {
-    throw new Error(
-      data.error || data.detail || `Speech-to-text failed (${res.status})`
-    );
+    const err =
+      typeof (data as SttResponse).error === "string"
+        ? (data as SttResponse).error
+        : typeof (data as SttResponse).detail === "string"
+          ? (data as SttResponse).detail
+          : undefined;
+    throw new Error(err || `Speech-to-text failed (${res.status})`);
   }
   const text = extractSttText(data);
   if (!text) {
+    const segLen = Array.isArray(data.segments) ? data.segments.length : 0;
+    const keys = data && typeof data === "object" ? Object.keys(data).join(",") : "";
     console.warn("[ttsai/stt] empty transcript", {
+      audioBytes: audioBuffer.length,
       duration: data.duration,
-      segmentCount: data.segments?.length ?? 0,
+      segmentCount: segLen,
+      responseKeys: keys || "(unparsed)",
+      bodySample: rawText.slice(0, 400),
     });
     throw new Error(
       "No speech was found in this recording. Record a bit longer with the meeting tab unmuted and selected, or try again when others are speaking."

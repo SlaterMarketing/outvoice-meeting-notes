@@ -1,16 +1,12 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-full flex-col bg-[#f7f5f2] text-[#1a1917]">
       <header className="border-b border-[#1a1917]/10 bg-[#f7f5f2]/90 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5 md:px-8">
-          <Link
-            href="/"
-            className="font-display text-lg font-semibold tracking-tight text-[#1a1917]"
-          >
-            Outvoice
-          </Link>
+          <BrandLogo href="/" />
           <nav className="flex items-center gap-6">
             <Link
               href="/login"

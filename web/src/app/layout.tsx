@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   title: "Outvoice — Meeting notes from your browser",
   description:
     "Capture Google Meet, Zoom, and Teams in Chrome. Transcripts, notes, and follow-ups in one library.",
+  icons: {
+    icon: "/outvoice.png",
+    apple: "/outvoice.png",
+  },
 };
 
 export default function RootLayout({

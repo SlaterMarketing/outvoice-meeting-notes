@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/BrandLogo";
 
 function ShellLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -20,7 +21,7 @@ export default function AppGroupLayout({
     <div className="flex min-h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
       <header className="border-b border-zinc-200/80 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <ShellLink href="/">Outvoice</ShellLink>
+          <BrandLogo compact href="/" />
           <nav className="flex gap-4">
             <ShellLink href="/dashboard">Library</ShellLink>
             <ShellLink href="/settings">Settings</ShellLink>

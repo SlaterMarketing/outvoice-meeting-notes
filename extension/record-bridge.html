@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      html::-webkit-scrollbar,
+      body::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+      }
+      body {
+        font-family: "Google Sans", Roboto, Arial, sans-serif;
+      }
+
+      html.meet-native,
+      html.meet-native body {
+        width: 48px;
+        height: 48px;
+        max-width: 48px;
+        max-height: 48px;
+        overflow: hidden;
+        box-sizing: border-box;
+      }
+      html.meet-native body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+      }
+
+      /* Default (Zoom / Teams): simple pill */
+      .wrap-default {
+        width: 100%;
+        height: 100%;
+        min-height: 32px;
+      }
+      .wrap-default button {
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 7px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        background: #18181b;
+        color: #fff;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      .wrap-default button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+      .wrap-default .meet-only {
+        display: none !important;
+      }
+
+      /* Google Meet: circular control bar button */
+      .wrap-meet {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        overflow: hidden;
+      }
+      .wrap-meet .meet-only {
+        display: block;
+      }
+      html.meet-native .wrap-default {
+        display: none;
+      }
+      html:not(.meet-native) .wrap-meet {
+        display: none;
+      }
+
+      .wrap-meet button {
+        position: relative;
+        width: 48px;
+        height: 48px;
+        border: none;
+        border-radius: 50%;
+        padding: 0;
+        cursor: pointer;
+        background: #3c4043;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+          background 0.15s ease,
+          transform 0.1s ease,
+          opacity 0.15s ease;
+        -webkit-tap-highlight-color: transparent;
+      }
+      /* Dimmed when sign-in / init not ready — still interactive for hover + press feedback */
+      .wrap-meet button.outvoice-action-blocked:not(.recording) {
+        opacity: 0.72;
+      }
+      .wrap-meet button.outvoice-action-blocked:not(.recording):hover {
+        opacity: 0.88;
+      }
+      /* Meet-like idle hover: soft light circle behind the icon (not full-button fill) */
+      .wrap-meet button::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 34px;
+        height: 34px;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        background: rgba(232, 234, 237, 0.22);
+        opacity: 0;
+        transition: opacity 0.12s ease;
+        pointer-events: none;
+        z-index: 0;
+      }
+      .wrap-meet button:not(.recording):hover::before {
+        opacity: 1;
+      }
+      .wrap-meet button.outvoice-action-blocked:not(.recording):hover::before {
+        opacity: 0.65;
+      }
+      .wrap-meet button:not(.recording):active {
+        transform: scale(0.94);
+      }
+      .wrap-meet button:not(.recording):active::before {
+        opacity: 1;
+      }
+      .wrap-meet button.recording::before {
+        display: none;
+      }
+      .wrap-meet button.recording:active {
+        transform: scale(0.94);
+      }
+      .wrap-meet button:focus-visible {
+        outline: 2px solid #8ab4f8;
+        outline-offset: 2px;
+      }
+      .wrap-meet button.recording {
+        background: #c5221f;
+      }
+      .wrap-meet button.recording:hover {
+        background: #a50e0b;
+      }
+
+      .wrap-meet button svg {
+        position: relative;
+        z-index: 1;
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+      }
+      .wrap-meet .icon-rec {
+        display: none;
+      }
+      .wrap-meet button.recording .icon-idle {
+        display: none;
+      }
+      .wrap-meet button.recording .icon-rec {
+        display: block;
+      }
+
+      /* Pre-join (before Join now): light control to match mic/camera on the preview bar */
+      html.meet-native.meet-prejoin .wrap-meet button:not(.recording) {
+        background: #e8eaed;
+        color: #3c4043;
+      }
+      html.meet-native.meet-prejoin .wrap-meet button:not(.recording)::before {
+        background: rgba(60, 64, 67, 0.14);
+      }
+      html.meet-native.meet-prejoin .wrap-meet button.recording {
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap-default">
+      <button type="button" id="start-default" disabled>Start</button>
+    </div>
+
+    <div class="wrap-meet meet-only">
+      <button type="button" id="start-meet" class="outvoice-action-blocked" aria-label="Record with Outvoice">
+        <svg class="icon-idle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" />
+        </svg>
+        <svg class="icon-rec" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="8" y="8" width="8" height="8" rx="1" />
+        </svg>
+      </button>
+    </div>
+
+    <script src="record-bridge.js"></script>
+  </body>
+</html>

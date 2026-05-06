@@ -15,6 +15,61 @@ let accessToken = null;
 let apiOrigin = null;
 /** @type {number | null} */
 let captureTabId = null;
+/** @type {AudioContext | null} */
+let tabAudioMonitor = null;
+
+/* chrome.storage is not available in offscreen documents; the service worker persists state. */
+function persistRecordingState(meetingId, tabId) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      { type: "OUTVOICE_INTERNAL_SET_RECORDING", meetingId, tabId },
+      (res) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(res);
+      }
+    );
+  });
+}
+
+function clearRecordingState() {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "OUTVOICE_INTERNAL_CLEAR_RECORDING" }, () => {
+      resolve(undefined);
+    });
+  });
+}
+
+/**
+ * Chrome expects matching audio + video tab constraints when using a stream id from tabCapture
+ * in an offscreen document (video tracks can be stopped immediately; we only record audio).
+ * See https://developer.chrome.com/docs/extensions/how-to/web-platform/screen-capture
+ *
+ * @param {string} streamId
+ * @returns {Promise<MediaStream>}
+ */
+async function getTabAudioStream(streamId) {
+  // @ts-ignore chromeMediaSource is extension-specific
+  const raw = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      mandatory: {
+        chromeMediaSource: "tab",
+        chromeMediaSourceId: streamId,
+      },
+    },
+    video: {
+      mandatory: {
+        chromeMediaSource: "tab",
+        chromeMediaSourceId: streamId,
+      },
+    },
+  });
+  raw.getVideoTracks().forEach((t) => t.stop());
+  const audioTracks = raw.getAudioTracks();
+  return audioTracks.length ? new MediaStream(audioTracks) : raw;
+}
 
 /**
  * @param {Record<string, unknown>} msg
@@ -27,23 +82,22 @@ async function handleStart(msg) {
   apiOrigin = /** @type {string} */ (msg.apiOrigin);
   captureTabId = /** @type {number} */ (msg.tabId);
 
-  const stream = await new Promise((resolve, reject) => {
-    // @ts-ignore chrome-specific constraints
-    navigator.mediaDevices
-      .getUserMedia({
-        audio: {
-          mandatory: {
-            chromeMediaSource: "tab",
-            chromeMediaSourceId: streamId,
-          },
-        },
-        video: false,
-      })
-      .then(resolve)
-      .catch(reject);
-  });
+  if (!streamId?.trim()) {
+    throw new Error("No capture stream from the browser.");
+  }
 
+  const stream = await getTabAudioStream(streamId);
   capturedStream = stream;
+
+  /* So the meeting keeps playing aloud while we record (Chrome tab capture default). */
+  try {
+    tabAudioMonitor = new AudioContext();
+    tabAudioMonitor.createMediaStreamSource(stream).connect(tabAudioMonitor.destination);
+  } catch (e) {
+    stream.getTracks().forEach((t) => t.stop());
+    capturedStream = null;
+    throw e instanceof Error ? e : new Error("Could not open tab audio.");
+  }
 
   const startRes = await fetch(`${apiOrigin}/api/meetings/start`, {
     method: "POST",
@@ -53,18 +107,30 @@ async function handleStart(msg) {
     },
     body: JSON.stringify({ tabUrl, title }),
   });
-  const startJson = /** @type {{ meetingId?: string; error?: string }} */ (
-    await startRes.json()
-  );
+  let startJson = /** @type {{ meetingId?: string; error?: string }} */ ({});
+  try {
+    const text = await startRes.text();
+    if (text) startJson = JSON.parse(text);
+  } catch {
+    startJson = {};
+  }
   if (!startRes.ok) {
     stream.getTracks().forEach((t) => t.stop());
     capturedStream = null;
+    if (tabAudioMonitor) {
+      await tabAudioMonitor.close();
+      tabAudioMonitor = null;
+    }
     throw new Error(startJson.error || "Could not start session.");
   }
   meetingId = startJson.meetingId || null;
   if (!meetingId) {
     stream.getTracks().forEach((t) => t.stop());
     capturedStream = null;
+    if (tabAudioMonitor) {
+      await tabAudioMonitor.close();
+      tabAudioMonitor = null;
+    }
     throw new Error("Bad response from library.");
   }
 
@@ -73,24 +139,34 @@ async function handleStart(msg) {
   if (!MediaRecorder.isTypeSupported(mime)) {
     mime = "audio/webm";
   }
-  mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
-  mediaRecorder.ondataavailable = (ev) => {
-    if (ev.data && ev.data.size > 0) chunks.push(ev.data);
-  };
-  mediaRecorder.start(2000);
+  try {
+    mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
+    mediaRecorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+    };
+    mediaRecorder.start(2000);
 
-  await chrome.storage.local.set({
-    outvoiceRecording: {
-      active: true,
-      meetingId,
-      tabId: captureTabId,
-    },
-  });
+    await persistRecordingState(meetingId, /** @type {number} */ (captureTabId));
+  } catch (e) {
+    stream.getTracks().forEach((t) => t.stop());
+    capturedStream = null;
+    meetingId = null;
+    if (tabAudioMonitor) {
+      try {
+        await tabAudioMonitor.close();
+      } catch {
+        /* ignore */
+      }
+      tabAudioMonitor = null;
+    }
+    mediaRecorder = null;
+    throw e instanceof Error ? e : new Error("Could not start recording.");
+  }
 }
 
 async function handleStop() {
   if (!mediaRecorder || mediaRecorder.state === "inactive") {
-    await chrome.storage.local.remove("outvoiceRecording");
+    await clearRecordingState();
     return;
   }
 
@@ -103,6 +179,14 @@ async function handleStop() {
     mr.addEventListener(
       "stop",
       async () => {
+        if (tabAudioMonitor) {
+          try {
+            await tabAudioMonitor.close();
+          } catch {
+            /* ignore */
+          }
+          tabAudioMonitor = null;
+        }
         if (capturedStream) {
           capturedStream.getTracks().forEach((t) => t.stop());
           capturedStream = null;
@@ -113,22 +197,32 @@ async function handleStop() {
           const form = new FormData();
           form.append("audio", blob, "capture.webm");
           try {
-            await fetch(`${origin}/api/meetings/${id}/audio`, {
+            const res = await fetch(`${origin}/api/meetings/${id}/audio`, {
               method: "POST",
               headers: { Authorization: `Bearer ${token}` },
               body: form,
             });
-          } catch {
-            /* ignore */
+            if (!res.ok) {
+              const detail = await res.text().catch(() => "");
+              console.warn(
+                "[Outvoice] Audio upload failed:",
+                res.status,
+                detail.slice(0, 300)
+              );
+            }
+          } catch (e) {
+            console.warn(
+              "[Outvoice] Audio upload error:",
+              e instanceof Error ? e.message : e
+            );
           }
         }
         meetingId = null;
         mediaRecorder = null;
         accessToken = null;
         apiOrigin = null;
-        const tab = captureTabId;
         captureTabId = null;
-        await chrome.storage.local.remove("outvoiceRecording");
+        await clearRecordingState();
         resolve(undefined);
       },
       { once: true }
@@ -145,7 +239,7 @@ chrome.runtime.onConnect.addListener((port) => {
         await handleStart(msg);
         port.postMessage({ type: "START_DONE", id: msg.id, ok: true });
       } catch (e) {
-        await chrome.storage.local.remove("outvoiceRecording");
+        await clearRecordingState();
         port.postMessage({
           type: "START_DONE",
           id: msg.id,

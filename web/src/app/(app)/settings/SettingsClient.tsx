@@ -80,7 +80,8 @@ export default function SettingsClient() {
         </h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           If your workspace does not supply one automatically, paste the key from your TTS.ai
-          account. Leave blank and save to clear.
+          account. When the server already has a key configured, that one is used first. Leave
+          blank and save to clear.
         </p>
         <form onSubmit={saveKey} className="flex max-w-md flex-col gap-3">
           <input

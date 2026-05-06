@@ -9,7 +9,8 @@ export function getTtsAiApiKey(
 ): string | null {
   const fromUser = userKey?.trim();
   const fromEnv = process.env.TTS_AI_API_KEY?.trim();
-  const key = fromUser || fromEnv || "";
+  /* Env wins so Vercel/host config is never shadowed by an old value in Settings. */
+  const key = fromEnv || fromUser || "";
   return key || null;
 }
 

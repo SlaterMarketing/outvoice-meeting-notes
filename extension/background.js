@@ -10,16 +10,55 @@ function normalizeOrigin(raw) {
   }
 }
 
+const TAB_CAPTURE_GESTURE_HINT =
+  "Pin Outvoice on your toolbar if needed, click its icon once while this meeting tab is on top, then tap Start again.";
+
+/**
+ * Same host/path rules as the content overlay (supported meeting surfaces).
+ * @param {string} url
+ */
+function isKnownMeetingTabUrl(url) {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    const h = u.hostname;
+    const p = u.pathname;
+    if (h === "meet.google.com") {
+      if (/^\/[a-z]{3}-[a-z]{4}-[a-z]{3}/i.test(p)) return true;
+      if (p !== "/" && !p.startsWith("/landing")) return true;
+    }
+    if (h === "zoom.us" || h.endsWith(".zoom.us")) {
+      if (p.includes("/wc/") || p.includes("/j/") || p.includes("/meet")) return true;
+      if (h.startsWith("app.") && p.includes("/wc")) return true;
+    }
+    if (
+      h.includes("teams.microsoft.com") ||
+      h === "teams.live.com" ||
+      h.endsWith(".teams.live.com")
+    ) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * @param {unknown} err
+ * @param {string} [tabUrl] live tab URL for smarter copy on known hosts
  */
-function friendlyTabCaptureError(err) {
+function friendlyTabCaptureError(err, tabUrl) {
   const s = err instanceof Error ? err.message : String(err);
-  if (/cannot be captured|invalid tab|Cannot capture/i.test(s)) {
-    return "This page can’t be recorded. Use a normal Meet, Zoom, or Teams tab.";
-  }
+  /* Prefer user-action message: Chrome appends “…cannot be captured” even for activeTab cases. */
   if (/has not been invoked|activeTab|Extension has not been invoked/i.test(s)) {
-    return "Pin Outvoice on your toolbar if needed, click its icon once while this meeting tab is on top, then tap Start again.";
+    return TAB_CAPTURE_GESTURE_HINT;
+  }
+  if (/cannot be captured|invalid tab|Cannot capture/i.test(s)) {
+    if (tabUrl && isKnownMeetingTabUrl(tabUrl)) {
+      return TAB_CAPTURE_GESTURE_HINT;
+    }
+    return "This page can’t be recorded. Use a normal Meet, Zoom, or Teams tab.";
   }
   return s || "Could not access this tab’s audio.";
 }
@@ -76,7 +115,7 @@ async function connectOffscreen() {
  * @param {string} tabUrl
  * @param {string} title
  */
-async function startCaptureForTab(tabId, tabUrl, title) {
+async function startCaptureForTab(tabId, tabUrl, title, presetStreamId) {
   const sync = await chrome.storage.sync.get(["accessToken", "libraryOrigin"]);
   if (!sync.accessToken) {
     throw new Error("Sign in to Outvoice first (extension icon).");
@@ -126,20 +165,24 @@ async function startCaptureForTab(tabId, tabUrl, title) {
     );
   }
 
-  let streamId;
-  try {
-    streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
-  } catch (e) {
-    const active = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    const front = active[0];
-    if (front?.id === tabId) {
-      try {
-        streamId = await chrome.tabCapture.getMediaStreamId();
-      } catch (e2) {
-        throw new Error(friendlyTabCaptureError(e2));
+  let streamId =
+    typeof presetStreamId === "string" && presetStreamId.trim() ? presetStreamId.trim() : "";
+
+  if (!streamId) {
+    try {
+      streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
+    } catch (e) {
+      const active = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      const front = active[0];
+      if (front?.id === tabId) {
+        try {
+          streamId = await chrome.tabCapture.getMediaStreamId();
+        } catch (e2) {
+          throw new Error(friendlyTabCaptureError(e2, url));
+        }
+      } else {
+        throw new Error(friendlyTabCaptureError(e, url));
       }
-    } else {
-      throw new Error(friendlyTabCaptureError(e));
     }
   }
   if (!streamId) {
@@ -224,7 +267,82 @@ async function stopCapture() {
   }
 }
 
+function messageFromOffscreen(sender) {
+  return (sender.url || "").includes("offscreen.html");
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === "OUTVOICE_INTERNAL_SET_RECORDING") {
+    if (!messageFromOffscreen(sender)) {
+      sendResponse({ ok: false });
+      return false;
+    }
+    const meetingId = /** @type {string} */ (msg.meetingId);
+    const tabId = /** @type {number} */ (msg.tabId);
+    chrome.storage.local
+      .set({
+        outvoiceRecording: {
+          active: true,
+          meetingId,
+          tabId,
+        },
+      })
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (msg?.type === "OUTVOICE_INTERNAL_CLEAR_RECORDING") {
+    if (!messageFromOffscreen(sender)) {
+      sendResponse({ ok: false });
+      return false;
+    }
+    chrome.storage.local
+      .remove("outvoiceRecording")
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (msg?.type === "OUTVOICE_WHOAMI") {
+    sendResponse({ tabId: sender.tab?.id ?? null });
+    return false;
+  }
+
+  if (msg?.type === "OUTVOICE_START_WITH_STREAM") {
+    const fromBridge = (sender.url || "").includes("record-bridge.html");
+    if (!fromBridge) {
+      sendResponse({ ok: false, error: "Invalid sender." });
+      return false;
+    }
+    const streamId = /** @type {string} */ (msg.streamId ?? "");
+    const tabId = /** @type {number | undefined} */ (msg.tabId);
+    const tabUrl = /** @type {string} */ (msg.tabUrl ?? "");
+    const tabTitle = /** @type {string} */ (msg.tabTitle ?? "");
+    if (!tabId) {
+      sendResponse({ ok: false, error: "No tab." });
+      return false;
+    }
+    if (!streamId.trim()) {
+      sendResponse({ ok: false, error: "No capture stream." });
+      return false;
+    }
+    startCaptureForTab(tabId, tabUrl, tabTitle, streamId)
+      .then(() => sendResponse({ ok: true }))
+      .catch((e) => {
+        const raw = e instanceof Error ? e.message : String(e);
+        const leaked =
+          /activeTab|has not been invoked|Extension has not been invoked|cannot be captured|Cannot capture|invalid tab/i.test(
+            raw
+          );
+        sendResponse({
+          ok: false,
+          error: leaked ? friendlyTabCaptureError(e, tabUrl) : raw || "Failed.",
+        });
+      });
+    return true;
+  }
+
   if (msg?.type === "OUTVOICE_START_CAPTURE") {
     const tabId = /** @type {number | undefined} */ (msg.tabId) ?? sender.tab?.id;
     const tabUrl =
@@ -245,7 +363,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           );
         sendResponse({
           ok: false,
-          error: leaked ? friendlyTabCaptureError(e) : raw || "Failed.",
+          error: leaked ? friendlyTabCaptureError(e, tabUrl) : raw || "Failed.",
         });
       });
     return true;

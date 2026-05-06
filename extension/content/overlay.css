@@ -94,6 +94,15 @@
   gap: 6px;
 }
 
+#outvoice-overlay-actions iframe#outvoice-start-bridge {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  border: none;
+  vertical-align: top;
+  background: transparent;
+}
+
 #outvoice-overlay-actions button {
   flex: 1;
   min-width: 0;
@@ -205,4 +214,104 @@
     background: rgba(39, 39, 42, 0.95);
     border-color: rgba(255, 255, 255, 0.12);
   }
+}
+
+/* Google Meet: toolbar slot (undocked fallback if #browser-extension-center-buttons missing) */
+#outvoice-overlay-host.outvoice-meet-native:not(.outvoice-meet-docked) {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+#outvoice-overlay-host.outvoice-meet-native.outvoice-meet-docked {
+  position: relative;
+  z-index: 1;
+  bottom: auto;
+  left: auto;
+  right: auto;
+  transform: none;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin: 0 2px;
+}
+
+#outvoice-overlay-host.outvoice-meet-native.outvoice-meet-prejoin {
+  margin: 0 0 0 10px;
+}
+
+#outvoice-overlay-host.outvoice-meet-native.outvoice-meet-toolbar-fallback {
+  margin: 0 0 0 8px;
+}
+
+#outvoice-overlay-host.outvoice-meet-native #outvoice-overlay-panel {
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  align-items: center;
+}
+
+#outvoice-overlay-host.outvoice-meet-native #outvoice-overlay-status {
+  display: none;
+  margin-top: 4px;
+  max-width: min(280px, 90vw);
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #e8eaed;
+}
+
+#outvoice-overlay-host.outvoice-meet-native #outvoice-overlay-status:not(:empty) {
+  display: block;
+}
+
+#outvoice-overlay-host.outvoice-meet-native.outvoice-meet-docked #outvoice-overlay-panel {
+  position: relative;
+}
+
+#outvoice-overlay-host.outvoice-meet-native.outvoice-meet-docked #outvoice-overlay-status.error {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 0;
+  white-space: normal;
+  max-width: min(260px, 70vw);
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: #202124;
+  color: #f28b82;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  z-index: 2147483645;
+}
+
+#outvoice-overlay-host.outvoice-meet-native:not(.outvoice-meet-docked) #outvoice-overlay-status.error {
+  color: #f28b82;
+}
+
+#outvoice-overlay-host.outvoice-meet-native #outvoice-overlay-actions {
+  gap: 0;
+  justify-content: center;
+}
+
+#outvoice-overlay-host.outvoice-meet-native #outvoice-overlay-actions iframe#outvoice-start-bridge {
+  width: 48px;
+  height: 48px;
+  max-width: 48px;
+  max-height: 48px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+#outvoice-overlay-host.outvoice-meet-native #outvoice-overlay-min {
+  display: none !important;
 }

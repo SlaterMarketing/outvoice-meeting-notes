@@ -59,25 +59,6 @@ async function showStage() {
   await syncPopupRecordingUi();
 }
 
-async function syncPopupRecordingUi() {
-  try {
-    /** @type {{ recording?: boolean }} */
-    const r = await chrome.runtime.sendMessage({ type: "OUTVOICE_GET_STATE" });
-    if (r?.recording) {
-      /** @type {HTMLButtonElement} */ ($("start")).disabled = true;
-      /** @type {HTMLButtonElement} */ ($("stop")).disabled = false;
-      setStatus("Capturing… use Stop here or on the meeting page.");
-    } else {
-      /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
-      /** @type {HTMLButtonElement} */ ($("stop")).disabled = true;
-      setStatus("Idle. Start from your meeting tab.");
-    }
-  } catch {
-    /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
-    /** @type {HTMLButtonElement} */ ($("stop")).disabled = true;
-  }
-}
-
 const consentCheck = /** @type {HTMLInputElement} */ ($("consent-check"));
 const consentBtn = /** @type {HTMLButtonElement} */ ($("consent-continue"));
 consentCheck.addEventListener("change", () => {
@@ -336,14 +317,105 @@ $("pair").addEventListener("click", async () => {
   }
 });
 
-function setStatus(text) {
-  $("status").textContent = text;
+/**
+ * @param {string} text
+ * @param {"neutral" | "error" | "ok"} [variant]
+ */
+function setStatus(text, variant = "neutral") {
+  const el = /** @type {HTMLParagraphElement} */ ($("status"));
+  el.textContent = text;
+  if (!text) {
+    el.removeAttribute("class");
+    return;
+  }
+  el.className =
+    variant === "error" ? "error" : variant === "ok" ? "ok" : "small";
 }
 
-$("start").addEventListener("click", async () => {
+/**
+ * @param {boolean} recording
+ */
+function setToggleVisual(recording) {
+  const btn = /** @type {HTMLButtonElement} */ ($("capture-toggle"));
+  if (recording) {
+    btn.textContent = "Stop & send";
+    btn.classList.add("recording");
+    btn.setAttribute("aria-pressed", "true");
+  } else {
+    btn.textContent = "Record";
+    btn.classList.remove("recording");
+    btn.setAttribute("aria-pressed", "false");
+  }
+}
+
+async function syncPopupRecordingUi() {
+  try {
+    /** @type {{ recording?: boolean }} */
+    const r = await chrome.runtime.sendMessage({ type: "OUTVOICE_GET_STATE" });
+    if (r?.recording) {
+      /** @type {HTMLButtonElement} */ ($("capture-toggle")).disabled = false;
+      setToggleVisual(true);
+      setStatus("");
+    } else {
+      /** @type {HTMLButtonElement} */ ($("capture-toggle")).disabled = false;
+      setToggleVisual(false);
+      setStatus("");
+    }
+  } catch (e) {
+    /** @type {HTMLButtonElement} */ ($("capture-toggle")).disabled = false;
+    setToggleVisual(false);
+    setStatus(
+      globalThis.outvoiceFriendlyRuntimeError(
+        e instanceof Error ? e : "Could not read state."
+      ),
+      "error"
+    );
+  }
+}
+
+$("capture-toggle").addEventListener("click", async () => {
   const sync = await chrome.storage.sync.get(["accessToken"]);
   if (!sync.accessToken || !getPackagedLibraryOrigin()) {
     setStatus("Sign in first.");
+    return;
+  }
+
+  const btn = /** @type {HTMLButtonElement} */ ($("capture-toggle"));
+  /** @type {{ recording?: boolean }} */
+  let state;
+  try {
+    state = await chrome.runtime.sendMessage({ type: "OUTVOICE_GET_STATE" });
+  } catch (e) {
+    setStatus(
+      globalThis.outvoiceFriendlyRuntimeError(e instanceof Error ? e : "Could not read state."),
+      "error"
+    );
+    return;
+  }
+
+  const recording = !!state?.recording;
+
+  if (recording) {
+    btn.disabled = true;
+    setStatus("Processing…");
+    try {
+      /** @type {{ ok?: boolean; error?: string }} */
+      const res = await chrome.runtime.sendMessage({ type: "OUTVOICE_STOP_CAPTURE" });
+      if (!res?.ok) {
+        setStatus(globalThis.outvoiceFriendlyRuntimeError(res?.error || "Stop failed."), "error");
+        setToggleVisual(true);
+      } else {
+        setStatus("Sent. Open your library to read notes.", "ok");
+        setToggleVisual(false);
+      }
+    } catch (e) {
+      setStatus(
+        globalThis.outvoiceFriendlyRuntimeError(e instanceof Error ? e : "Stop failed."),
+        "error"
+      );
+      setToggleVisual(true);
+    }
+    btn.disabled = false;
     return;
   }
 
@@ -353,7 +425,7 @@ $("start").addEventListener("click", async () => {
     return;
   }
 
-  /** @type {HTMLButtonElement} */ ($("start")).disabled = true;
+  btn.disabled = true;
   try {
     /** @type {{ ok?: boolean; error?: string }} */
     const res = await chrome.runtime.sendMessage({
@@ -363,34 +435,19 @@ $("start").addEventListener("click", async () => {
       tabTitle: tab.title || "",
     });
     if (!res?.ok) {
-      setStatus(res?.error || "Could not start.");
-      /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
+      setStatus(globalThis.outvoiceFriendlyRuntimeError(res?.error || "Could not start."), "error");
       return;
     }
-    /** @type {HTMLButtonElement} */ ($("stop")).disabled = false;
-    setStatus("Capturing… use Stop here or on the meeting page.");
+    setToggleVisual(true);
+    setStatus("");
   } catch (e) {
-    setStatus(e instanceof Error ? e.message : "Could not start.");
-    /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
+    setStatus(
+      globalThis.outvoiceFriendlyRuntimeError(e instanceof Error ? e : "Could not start."),
+      "error"
+    );
+  } finally {
+    btn.disabled = false;
   }
-});
-
-$("stop").addEventListener("click", async () => {
-  /** @type {HTMLButtonElement} */ ($("stop")).disabled = true;
-  setStatus("Processing…");
-  try {
-    /** @type {{ ok?: boolean; error?: string }} */
-    const res = await chrome.runtime.sendMessage({ type: "OUTVOICE_STOP_CAPTURE" });
-    if (!res?.ok) {
-      setStatus(res?.error || "Stop failed.");
-    } else {
-      setStatus("Sent. Open your library to read notes.");
-    }
-  } catch (e) {
-    setStatus(e instanceof Error ? e.message : "Stop failed.");
-  }
-  /** @type {HTMLButtonElement} */ ($("start")).disabled = false;
-  /** @type {HTMLButtonElement} */ ($("stop")).disabled = true;
 });
 
 async function migrateLibraryOrigin() {

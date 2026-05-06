@@ -122,6 +122,9 @@
         button {
           color: #18181b;
         }
+        button.capture-toggle.recording {
+          color: #fff;
+        }
         button.secondary {
           color: var(--text);
         }
@@ -134,13 +137,17 @@
         cursor: default;
         transform: none;
       }
-      .row {
-        display: flex;
-        gap: 10px;
+      button.capture-toggle.recording {
+        background: #c5221f;
+        color: #fff;
+        box-shadow: var(--shadow);
       }
-      .row button {
-        flex: 1;
-        margin-top: 12px;
+      button.capture-toggle.recording:hover:not(:disabled) {
+        background: #a50e0b;
+      }
+      button.capture-toggle.recording:disabled {
+        opacity: 0.65;
+        color: #fff;
       }
       .small {
         font-size: 12px;
@@ -194,13 +201,27 @@
       .brand-bar {
         display: flex;
         align-items: center;
-        gap: 0.30375rem;
-        margin: -2px -2px 14px;
+        justify-content: space-between;
+        gap: 12px;
+        margin: -2px -2px 0;
         padding: 10px 12px;
         border-radius: var(--radius);
         background: var(--surface);
         border: 1px solid var(--border);
         box-shadow: 0 1px 3px rgba(26, 25, 23, 0.05);
+      }
+      .brand-bar-start {
+        display: flex;
+        align-items: center;
+        gap: 0.30375rem;
+        min-width: 0;
+      }
+      .brand-bar .capture-toggle {
+        margin-top: 0;
+        width: auto;
+        flex-shrink: 0;
+        padding: 8px 14px;
+        font-size: 12px;
       }
       .brand-bar img {
         width: 21px;
@@ -222,12 +243,31 @@
         vertical-align: middle;
         accent-color: var(--primary);
       }
+      #main.main-capture {
+        margin-top: 0;
+      }
+      #status:empty {
+        display: none;
+      }
+      #status.small {
+        margin: 10px 0 0;
+      }
     </style>
   </head>
   <body>
     <header class="brand-bar" aria-label="Outvoice">
-      <img src="outvoice.png" alt="" width="21" height="21" decoding="async" />
-      <span class="brand-word">utvoice</span>
+      <div class="brand-bar-start">
+        <img src="outvoice.png" alt="" width="21" height="21" decoding="async" />
+        <span class="brand-word">utvoice</span>
+      </div>
+      <button
+        type="button"
+        id="capture-toggle"
+        class="capture-toggle"
+        aria-pressed="false"
+      >
+        Record
+      </button>
     </header>
     <div id="consent">
       <h1>Before you start</h1>
@@ -267,18 +307,11 @@
       </details>
     </div>
 
-    <div id="main">
-      <h1>Capture</h1>
-      <p class="small" id="status">Idle. Start from your meeting tab.</p>
-      <div class="row">
-        <button type="button" id="start" class="secondary">Start</button>
-        <button type="button" id="stop" disabled>Stop &amp; send</button>
-      </div>
-      <p class="small" id="hint">
-        Keep this open if you start here, or use Stop on the meeting page. Select the meeting tab before Start.
-      </p>
+    <div id="main" class="main-capture">
+      <p id="status" role="status" aria-live="polite"></p>
     </div>
 
+    <script src="runtime-errors.js"></script>
     <script src="library-origin.js"></script>
     <script src="popup.js" type="module"></script>
   </body>

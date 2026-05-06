@@ -29,14 +29,14 @@
         "https://*.teams.microsoft.com/*",
         "https://teams.live.com/*"
       ],
-      "js": ["content/overlay.js"],
+      "js": ["runtime-errors.js", "content/overlay.js"],
       "css": ["content/overlay.css"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["outvoice.png"],
+      "resources": ["outvoice.png", "record-bridge.html", "record-bridge.js"],
       "matches": [
         "https://meet.google.com/*",
         "https://*.zoom.us/*",

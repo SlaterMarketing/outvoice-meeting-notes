@@ -38,7 +38,7 @@ export async function transcribeWithTtsAi(
 ): Promise<string> {
   const base = getTtsAiBaseUrl();
   const form = new FormData();
-  const blob = new Blob([audioBuffer], { type: mime });
+  const blob = new Blob([new Uint8Array(audioBuffer)], { type: mime });
   form.append("file", blob, filename);
   form.append("model", process.env.TTS_AI_STT_MODEL ?? "faster-whisper");
   form.append("language", process.env.TTS_AI_STT_LANGUAGE ?? "auto");

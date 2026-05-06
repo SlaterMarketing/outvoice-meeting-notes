@@ -34,6 +34,16 @@ export const extensionPairingCodes = pgTable("extension_pairing_codes", {
   usedAt: timestamp("used_at", { withTimezone: true }),
 });
 
+export const extensionChromeAuthCodes = pgTable("extension_chrome_auth_codes", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  code: text("code").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+});
+
 export const extensionTokens = pgTable("extension_tokens", {
   id: text("id").primaryKey(),
   userId: text("user_id")

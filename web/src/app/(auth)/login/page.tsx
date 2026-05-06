@@ -1,14 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextParam = searchParams.get("next");
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
+
+  function verifyHref(baseEmail: string) {
+    const e = encodeURIComponent(baseEmail.trim().toLowerCase());
+    if (nextParam) {
+      return `/verify?email=${e}&next=${encodeURIComponent(nextParam)}`;
+    }
+    return `/verify?email=${e}`;
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,7 +43,7 @@ export default function LoginPage() {
         setDevCode(data.devCode);
         return;
       }
-      router.push(`/verify?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+      router.push(verifyHref(email));
     } finally {
       setBusy(false);
     }
@@ -53,11 +63,7 @@ export default function LoginPage() {
           </p>
           <button
             type="button"
-            onClick={() =>
-              router.push(
-                `/verify?email=${encodeURIComponent(email.trim().toLowerCase())}`
-              )
-            }
+            onClick={() => router.push(verifyHref(email))}
             className="w-fit rounded-md bg-amber-900 px-3 py-1.5 text-xs font-medium text-amber-50 hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-100"
           >
             Enter code
@@ -90,5 +96,13 @@ export default function LoginPage() {
         </button>
       </form>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm">Loading…</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

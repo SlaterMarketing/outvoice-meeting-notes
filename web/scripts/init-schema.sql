@@ -24,6 +24,14 @@ CREATE TABLE IF NOT EXISTS "extension_pairing_codes" (
   "used_at" timestamptz
 );
 
+CREATE TABLE IF NOT EXISTS "extension_chrome_auth_codes" (
+  "id" text PRIMARY KEY NOT NULL,
+  "user_id" text NOT NULL,
+  "code" text NOT NULL UNIQUE,
+  "expires_at" timestamptz NOT NULL,
+  "consumed_at" timestamptz
+);
+
 CREATE TABLE IF NOT EXISTS "extension_tokens" (
   "id" text PRIMARY KEY NOT NULL,
   "user_id" text NOT NULL,
@@ -51,6 +59,15 @@ DO $$
 BEGIN
   ALTER TABLE "extension_pairing_codes"
     ADD CONSTRAINT "extension_pairing_codes_user_id_users_id_fk"
+    FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE "extension_chrome_auth_codes"
+    ADD CONSTRAINT "extension_chrome_auth_codes_user_id_users_id_fk"
     FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE;
 EXCEPTION
   WHEN duplicate_object THEN NULL;

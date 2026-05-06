@@ -61,6 +61,93 @@ consentBtn.addEventListener("click", async () => {
   await showStage();
 });
 
+/**
+ * @param {string} url
+ * @returns {Promise<string|undefined>}
+ */
+function launchWebAuthFlowPromise(url) {
+  return new Promise((resolve, reject) => {
+    chrome.identity.launchWebAuthFlow({ url, interactive: true }, (responseUrl) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve(responseUrl);
+    });
+  });
+}
+
+$("sign-in").addEventListener("click", async () => {
+  const msg = $("connect-msg");
+  msg.textContent = "";
+  const origin = normalizeOrigin(/** @type {HTMLInputElement} */ ($("origin")).value);
+  if (!origin) {
+    msg.textContent = "Enter your library address.";
+    msg.className = "error";
+    return;
+  }
+
+  const redirectUrl = chrome.identity.getRedirectURL();
+  const authUrl = `${origin}/extension/connect?redirect_uri=${encodeURIComponent(redirectUrl)}`;
+
+  const btn = /** @type {HTMLButtonElement} */ ($("sign-in"));
+  btn.disabled = true;
+  try {
+    const responseUrl = await launchWebAuthFlowPromise(authUrl);
+    if (!responseUrl) {
+      msg.textContent = "Sign-in was cancelled.";
+      msg.className = "error";
+      return;
+    }
+    let code;
+    try {
+      const u = new URL(responseUrl);
+      code = u.searchParams.get("code");
+    } catch {
+      msg.textContent = "Unexpected response.";
+      msg.className = "error";
+      return;
+    }
+    if (!code) {
+      msg.textContent = "No code returned. Try again.";
+      msg.className = "error";
+      return;
+    }
+
+    const res = await fetch(`${origin}/api/extension/exchange`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = /** @type {{ accessToken?: string; error?: string }} */ (await res.json());
+    if (!res.ok || !data.accessToken) {
+      msg.textContent = data.error || "Could not finish sign-in.";
+      msg.className = "error";
+      return;
+    }
+    await chrome.storage.sync.set({
+      apiBaseUrl: origin,
+      accessToken: data.accessToken,
+    });
+    msg.textContent = "Connected.";
+    msg.className = "ok";
+    await showStage();
+  } catch (e) {
+    const m = e instanceof Error ? e.message : "Sign-in failed.";
+    if (
+      typeof m === "string" &&
+      (m.includes("closed") || m.includes("canceled") || m.includes("cancelled"))
+    ) {
+      msg.textContent = "Sign-in was cancelled.";
+    } else {
+      msg.textContent = m;
+    }
+    msg.className = "error";
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 $("pair").addEventListener("click", async () => {
   const msg = $("connect-msg");
   msg.textContent = "";
@@ -136,7 +223,7 @@ $("start").addEventListener("click", async () => {
   apiOrigin = normalizeOrigin(sync.apiBaseUrl || DEFAULT_ORIGIN);
   accessToken = sync.accessToken || null;
   if (!accessToken || !apiOrigin) {
-    setStatus("Connect first.");
+    setStatus("Sign in first.");
     return;
   }
 

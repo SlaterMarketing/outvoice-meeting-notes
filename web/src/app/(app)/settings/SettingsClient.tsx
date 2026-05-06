@@ -52,10 +52,12 @@ export default function SettingsClient() {
     <>
       <section className="flex flex-col gap-4 border-t border-zinc-200 pt-8 dark:border-zinc-800">
         <h2 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          Connect browser capture
+          Backup: connection code
         </h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Create a short code, then enter it in the capture helper. Codes expire in ten minutes.
+          The capture helper can sign you in with the browser. If you need a fallback (some
+          self-hosted setups), create a short code here and paste it under &quot;Other
+          setup&quot; in the helper. Codes expire in ten minutes.
         </p>
         <button
           type="button"
@@ -63,7 +65,7 @@ export default function SettingsClient() {
           disabled={linkBusy}
           className="w-fit rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
         >
-          {linkBusy ? "Creating…" : "New connection code"}
+          {linkBusy ? "Creating…" : "New backup code"}
         </button>
         {linkCode && (
           <p className="font-mono text-2xl font-semibold tracking-[0.2em] text-zinc-900 dark:text-zinc-50">

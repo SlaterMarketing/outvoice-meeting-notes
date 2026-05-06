@@ -2,11 +2,13 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, Suspense } from "react";
+import { safePostLoginPath } from "@/lib/safe-redirect";
 
 function VerifyForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const emailParam = searchParams.get("email") ?? "";
+  const nextParam = searchParams.get("next");
   const [email, setEmail] = useState(emailParam);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,7 +32,7 @@ function VerifyForm() {
         setError(data.error ?? "Could not verify.");
         return;
       }
-      router.push("/dashboard");
+      router.push(safePostLoginPath(nextParam));
       router.refresh();
     } finally {
       setBusy(false);

@@ -47,7 +47,7 @@ export function BrandLogo({
 
   const type = (
     <span
-      className={`${textSize} -ml-1 font-display font-medium leading-none tracking-tight ${wordmarkClassName}`}
+      className={`${textSize} font-display font-medium leading-none tracking-tight ${wordmarkClassName}`}
     >
       utvoice
     </span>
@@ -58,7 +58,7 @@ export function BrandLogo({
       <Link
         href={href}
         aria-label="Outvoice"
-        className={`inline-flex items-center gap-0 rounded-sm ring-offset-2 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#1a1917]/30 dark:focus-visible:ring-zinc-400/40 ${wrapperClassName}`}
+        className={`inline-flex items-center gap-1.5 rounded-sm ring-offset-2 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#1a1917]/30 dark:focus-visible:ring-zinc-400/40 ${wrapperClassName}`}
       >
         {mark}
         {type}
@@ -68,7 +68,7 @@ export function BrandLogo({
 
   return (
     <span
-      className={`inline-flex items-center justify-center gap-0 ${wrapperClassName}`}
+      className={`inline-flex items-center justify-center gap-1.5 ${wrapperClassName}`}
       role="img"
       aria-label="Outvoice"
     >

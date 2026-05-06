@@ -19,8 +19,9 @@ export const metadata: Metadata = {
   description:
     "Capture Google Meet, Zoom, and Teams in Chrome. Transcripts, notes, and follow-ups in one library.",
   icons: {
-    icon: "/outvoice.png",
-    apple: "/outvoice.png",
+    icon: [{ url: "/outvoice.png", type: "image/png", sizes: "512x512" }],
+    shortcut: "/outvoice.png",
+    apple: [{ url: "/outvoice.png", type: "image/png", sizes: "512x512" }],
   },
 };
 

@@ -1,6 +1,5 @@
 const CONSENT_KEY = "consentVersion";
 const CONSENT_VALUE = "1";
-const DEFAULT_ORIGIN = "http://localhost:3000";
 
 const $ = (id) => {
   const el = document.getElementById(id);
@@ -17,10 +16,17 @@ function normalizeOrigin(raw) {
   }
 }
 
+/** Origin from extension/library-origin.js (edit that file to change servers). */
+function getPackagedLibraryOrigin() {
+  const raw =
+    typeof window.OUTVOICE_LIBRARY_ORIGIN === "string"
+      ? window.OUTVOICE_LIBRARY_ORIGIN
+      : "http://localhost:3000";
+  return normalizeOrigin(raw);
+}
+
 async function loadPrefs() {
-  const sync = await chrome.storage.sync.get(["apiBaseUrl", "accessToken"]);
-  const originInput = /** @type {HTMLInputElement} */ ($("origin"));
-  originInput.value = (sync.apiBaseUrl || DEFAULT_ORIGIN).replace(/\/$/, "");
+  const sync = await chrome.storage.sync.get(["accessToken"]);
   return { accessToken: sync.accessToken };
 }
 
@@ -80,9 +86,9 @@ function launchWebAuthFlowPromise(url) {
 $("sign-in").addEventListener("click", async () => {
   const msg = $("connect-msg");
   msg.textContent = "";
-  const origin = normalizeOrigin(/** @type {HTMLInputElement} */ ($("origin")).value);
+  const origin = getPackagedLibraryOrigin();
   if (!origin) {
-    msg.textContent = "Enter your library address.";
+    msg.textContent = "This helper is not set up with a valid web address.";
     msg.className = "error";
     return;
   }
@@ -126,7 +132,6 @@ $("sign-in").addEventListener("click", async () => {
       return;
     }
     await chrome.storage.sync.set({
-      apiBaseUrl: origin,
       accessToken: data.accessToken,
     });
     msg.textContent = "Connected.";
@@ -151,9 +156,9 @@ $("sign-in").addEventListener("click", async () => {
 $("pair").addEventListener("click", async () => {
   const msg = $("connect-msg");
   msg.textContent = "";
-  const origin = normalizeOrigin(/** @type {HTMLInputElement} */ ($("origin")).value);
+  const origin = getPackagedLibraryOrigin();
   if (!origin) {
-    msg.textContent = "Enter a valid library address.";
+    msg.textContent = "This helper is not set up with a valid web address.";
     msg.className = "error";
     return;
   }
@@ -186,7 +191,6 @@ $("pair").addEventListener("click", async () => {
       return;
     }
     await chrome.storage.sync.set({
-      apiBaseUrl: origin,
       accessToken: data.accessToken,
     });
     msg.textContent = "Connected.";
@@ -194,7 +198,7 @@ $("pair").addEventListener("click", async () => {
     await showStage();
   } catch (e) {
     msg.textContent =
-      e instanceof Error ? e.message : "Network error. Check the library address.";
+      e instanceof Error ? e.message : "Network error. Try again.";
     msg.className = "error";
   } finally {
     btn.disabled = false;
@@ -219,8 +223,8 @@ function setStatus(text) {
 }
 
 $("start").addEventListener("click", async () => {
-  const sync = await chrome.storage.sync.get(["apiBaseUrl", "accessToken"]);
-  apiOrigin = normalizeOrigin(sync.apiBaseUrl || DEFAULT_ORIGIN);
+  const sync = await chrome.storage.sync.get(["accessToken"]);
+  apiOrigin = getPackagedLibraryOrigin();
   accessToken = sync.accessToken || null;
   if (!accessToken || !apiOrigin) {
     setStatus("Sign in first.");

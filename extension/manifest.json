@@ -5,8 +5,19 @@
   "version": "0.1.0",
   "permissions": ["tabCapture", "storage", "activeTab", "identity"],
   "host_permissions": ["http://localhost:3000/*", "https://*/*"],
+  "icons": {
+    "16": "outvoice.png",
+    "32": "outvoice.png",
+    "48": "outvoice.png",
+    "128": "outvoice.png"
+  },
   "action": {
     "default_title": "Outvoice capture",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "outvoice.png",
+      "32": "outvoice.png",
+      "48": "outvoice.png"
+    }
   }
 }

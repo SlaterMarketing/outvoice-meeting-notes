@@ -24,7 +24,7 @@ Capture meeting audio from **Google Meet**, **Zoom (web)**, or **Microsoft Teams
 
 4. **Processing** — Set `TTS_AI_API_KEY` from [TTS.ai](https://tts.ai/api/) (speech-to-text + notes), or sign in and add your key under **Settings** (BYO).
 
-5. **Extension** — Chrome → Extensions → Developer mode → **Load unpacked** → select the `extension/` folder. Set **Library address** to `http://localhost:3000` (or your deployed URL), then use **Sign in with browser** in the helper (or a **backup code** from **Settings**).
+5. **Extension** — Chrome → Extensions → Developer mode → **Load unpacked** → select the `extension/` folder. To point at a site other than local dev, edit **`extension/library-origin.js`** (set `OUTVOICE_LIBRARY_ORIGIN`), then reload the extension. Use **Sign in with browser** in the helper (or a **backup code** from **Settings**).
 
 ## Self-hosting (advanced)
 

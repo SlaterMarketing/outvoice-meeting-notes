@@ -92,9 +92,43 @@
         color: #52525b;
         user-select: none;
       }
+      .brand-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.3375rem;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #e4e4e7;
+      }
+      .brand-bar img {
+        width: 26px;
+        height: 26px;
+        object-fit: contain;
+        flex-shrink: 0;
+      }
+      .brand-word {
+        font-family: Georgia, "Liberation Serif", ui-serif, serif;
+        font-size: 1.35rem;
+        font-weight: 500;
+        color: #1a1917;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+      @media (prefers-color-scheme: dark) {
+        .brand-word {
+          color: #fafafa;
+        }
+        .brand-bar {
+          border-bottom-color: #3f3f46;
+        }
+      }
     </style>
   </head>
   <body>
+    <header class="brand-bar" aria-label="Outvoice">
+      <img src="outvoice.png" alt="" width="26" height="26" decoding="async" />
+      <span class="brand-word">utvoice</span>
+    </header>
     <div id="consent">
       <h1>Before you start</h1>
       <p class="small">
@@ -114,9 +148,6 @@
         Uses a quick browser window with the same email sign-in as the site. No codes to
         copy for normal use.
       </p>
-      <label>Library address
-        <input id="origin" type="url" placeholder="https://your-site.example" />
-      </label>
       <p id="connect-msg" class="small"></p>
       <button type="button" id="sign-in">Sign in with browser</button>
 
@@ -145,6 +176,7 @@
       </p>
     </div>
 
+    <script src="library-origin.js"></script>
     <script src="popup.js" type="module"></script>
   </body>
 </html>

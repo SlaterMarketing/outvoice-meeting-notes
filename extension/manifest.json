@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Outvoice capture",
+  "description": "Capture meeting audio from the browser tab and send it to your Outvoice library.",
+  "version": "0.1.0",
+  "permissions": ["tabCapture", "storage", "activeTab"],
+  "host_permissions": ["http://localhost:3000/*", "https://*/*"],
+  "action": {
+    "default_title": "Outvoice capture",
+    "default_popup": "popup.html"
+  }
+}
